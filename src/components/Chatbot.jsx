@@ -1,6 +1,29 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageSquare, X, Send, Loader2, Sparkles } from 'lucide-react';
+import { GoogleGenAI } from "@google/genai";
+
+const SYSTEM_INSTRUCTION = `You are a sophisticated, refined customer service assistant for a luxury high-end tea boutique. 
+Your tone is elegant, welcoming, knowledgeable, and calm. You speak in a way that evokes the sensory experience of tea.
+You help customers find the perfect tea based on their taste preferences, guide them on brewing techniques, and answer questions about tea origins or our brand story.
+Provide beautifully crafted but concise answers. Keep ALL responses around 100 characters in length. Get straight to the point. Use words like 'notes', 'infusion', 'ritual', 'craftsmanship', 'terroir'.
+Always be highly polite. If asked about prices, you can mention we have premium options starting from RS 550 to RS 2100+.
+Do not use emojis excessively. A single spark ✨, leaf 🍃 or teacup 🍵 is fine occasionally.
+If asked tasks unrelated to tea, gently guide the conversation back to our tea collection.
+
+IMPORTANT GUIDELINES FOR PRODUCTS:
+You MUST ONLY recommend teas from our official collection below. NEVER invent, hallucinate, or suggest any tea that is not explicitly on this list (e.g. do not say "Grand Reserve Earl Grey").
+If a customer asks what the most liked, most popular, or best selling tea is, you must tell them it is the "Himalayan Spring | 100 GM | First Flush Loose Black Tea", as it is our most highly-reviewed and well-loved classic.
+
+OUR OFFICIAL TEA COLLECTION:
+- HIMALAYAN SPRING | 100 GM | FIRST FLUSH LOOSE BLACK TEA (Most Popular)
+- SUMMER SOLSTICE MUSCATEL | 100 GM | SECOND FLUSH LOOSE BLACK TEA
+- SPRINGTIME BLOOM | 100 GM | FIRST FLUSH BLACK LOOSE TEA
+- SILVER TIPS IMPERIAL | 50 GM | MASCULINE MUSCATEL OOLONG
+- AUTUMNAL DEW | 100 GM | ROASTED AUTUMN FLUSH
+- MOONLIGHT PLUCK | 50 GM | RARE WHITE TEA
+- EMERALD GREEN | 100 GM | SPRING HARVEST GREEN TEA`;
+
 
 const Chatbot = () => {
     const [isOpen, setIsOpen] = useState(false);
@@ -24,24 +47,50 @@ const Chatbot = () => {
         if (!input.trim()) return;
 
         const userMsg = { role: 'user', content: input };
-        setMessages(prev => [...prev, userMsg]);
+        const newHistory = [...messages, userMsg];
+        setMessages(newHistory);
         setInput('');
+
+        if (!import.meta.env.VITE_GEMINI_API_KEY) {
+            setMessages(prev => [...prev, { role: 'model', content: "We are currently perfecting our tea brewing instruments. Please provide the VITE_GEMINI_API_KEY in your .env file." }]);
+            return;
+        }
+
+        const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
         setIsLoading(true);
 
         try {
-            const response = await fetch('/api/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ messages: [...messages, userMsg] })
+            const formattedContents = newHistory.map(m => ({
+                role: m.role || 'user',
+                parts: [{ text: m.content || '' }]
+            }));
+
+            const responseStream = await ai.models.generateContentStream({
+                model: 'gemini-2.5-flash',
+                contents: formattedContents,
+                config: {
+                    systemInstruction: SYSTEM_INSTRUCTION,
+                    maxOutputTokens: 250,
+                    temperature: 0.7,
+                }
             });
 
-            if (!response.ok) {
-                throw new Error('API Error');
-            }
+            setIsLoading(false);
+            setMessages(prev => [...prev, { role: 'model', content: '' }]);
+            let modelText = "";
 
-            const data = await response.json();
-            setMessages(prev => [...prev, data]);
+            for await (const chunk of responseStream) {
+                if (chunk.text) {
+                    modelText += chunk.text;
+                    setMessages(prev => {
+                        const newMsgs = [...prev];
+                        newMsgs[newMsgs.length - 1].content = modelText;
+                        return newMsgs;
+                    });
+                }
+            }
         } catch (error) {
+            console.error("Chat Error:", error);
             setMessages(prev => [...prev, { role: 'model', content: "Pardon me, I am momentarily unable to connect to my tea knowledge base. Please check back shortly." }]);
         } finally {
             setIsLoading(false);

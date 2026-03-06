@@ -1,35 +1,14 @@
-import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ChevronLeft, Droplets, Thermometer, Clock, Leaf } from 'lucide-react';
-import axios from 'axios';
 import { useCart } from '../context/CartContext';
+import { teas } from '../data/teas';
 
 const TeaDetail = () => {
     const { id } = useParams();
     const { addToCart } = useCart();
-    const [tea, setTea] = useState(null);
-    const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        const fetchTea = async () => {
-            try {
-                const res = await axios.get(`/api/teas/${id}`);
-                setTea(res.data);
-            } catch (err) {
-                console.error(err);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchTea();
-    }, [id]);
-
-    if (loading) return (
-        <div className="min-h-screen bg-cream flex items-center justify-center">
-            <div className="w-12 h-12 border-4 border-gold/30 border-t-gold rounded-full animate-spin"></div>
-        </div>
-    );
+    const tea = teas.find(t => t._id === id);
 
     if (!tea) return <div className="min-h-screen bg-cream flex items-center justify-center text-forest">Tea not found</div>;
 

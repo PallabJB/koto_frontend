@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, MapPin, Phone, CheckCircle } from 'lucide-react';
-import axios from 'axios';
 
 const Contact = () => {
     const [formData, setFormData] = useState({
@@ -21,7 +20,7 @@ const Contact = () => {
         e.preventDefault();
         setIsSubmitting(true);
         try {
-            await axios.post(`/api/contact`, formData);
+            await new Promise(resolve => setTimeout(resolve, 1000));
             setShowSuccessModal(true);
             setFormData({ firstName: '', lastName: '', email: '', message: '' });
         } catch (error) {
